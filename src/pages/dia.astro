@@ -1,0 +1,256 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Diário do dia" description="Leitura do Sincronário, tarefas e diário para cada data.">
+  <div class="wrap section" style="padding-top:2rem">
+    <div class="day-nav">
+      <button class="btn" id="d-prev" type="button" aria-label="Dia anterior">←</button>
+      <label class="sr-only" for="d-input">Data</label>
+      <input type="date" id="d-input" min="1900-01-01" max="2200-12-31" />
+      <button class="btn" id="d-hoje" type="button">Hoje</button>
+      <button class="btn" id="d-next" type="button" aria-label="Próximo dia">→</button>
+    </div>
+
+    <div class="day-grid">
+      <aside class="day-read" id="d-read" aria-live="polite"><p class="today-skel">Calculando…</p></aside>
+
+      <section class="work" aria-label="Planner e diário">
+        <div class="card gate" id="gate" hidden>
+          <h4>Entre para escrever</h4>
+          <p>Suas tarefas e seu diário ficam na sua conta, protegidos por login, e acompanham você em qualquer aparelho.</p>
+          <a class="btn btn--solid" id="gate-link" href="#">Entrar ou criar conta</a>
+        </div>
+
+        <div id="work" hidden>
+          <div class="field">
+            <label for="intencao">Intenção do dia</label>
+            <input type="text" id="intencao" maxlength="200" placeholder="O que quero cultivar neste dia?" autocomplete="off" />
+          </div>
+
+          <h3>Tarefas <small id="t-count"></small></h3>
+          <form class="task-form" id="task-form" autocomplete="off">
+            <input type="text" id="t-text" maxlength="300" placeholder="Nova tarefa" aria-label="Nova tarefa" />
+            <input type="time" id="t-time" aria-label="Horário (opcional)" />
+            <button class="btn" type="submit">Adicionar</button>
+          </form>
+          <ul class="tasks" id="tasks"></ul>
+          <p class="empty" id="t-empty" hidden>Nenhuma tarefa para este dia.</p>
+
+          <h3>Diário</h3>
+          <textarea id="journal" placeholder="Escreva sobre o dia, sonhos, sincronicidades…" aria-label="Diário"></textarea>
+          <p class="status" id="status" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    import { getStore, emptyEntry, newId, type Entry } from '../lib/store';
+    import { leitura, parseISO, toISO, toDayNumber, fromDayNumber, type YMD } from '../lib/calc';
+    import { renderResumo, renderLeitura } from '../lib/render';
+    import { u } from '../lib/url';
+
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+    const input = $<HTMLInputElement>('d-input');
+    const read = $('d-read');
+    const gate = $('gate');
+    const work = $('work');
+    const intencao = $<HTMLInputElement>('intencao');
+    const journal = $<HTMLTextAreaElement>('journal');
+    const ul = $<HTMLUListElement>('tasks');
+    const tCount = $('t-count');
+    const tEmpty = $('t-empty');
+    const status = $('status');
+
+    const store = getStore();
+    const now = new Date();
+    const hoje: YMD = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+
+    let current: YMD = parseISO(new URLSearchParams(location.search).get('d') ?? '') ?? hoje;
+    let entry: Entry = emptyEntry(toISO(current));
+    let loaded = false;
+    let pending = false;
+    let timer: number | undefined;
+    let saving: Promise<void> = Promise.resolve();
+    let seq = 0;
+
+    function setStatus(msg: string, kind = '') {
+      status.textContent = msg;
+      status.setAttribute('data-kind', kind);
+    }
+
+    function flush(): Promise<void> {
+      window.clearTimeout(timer);
+      timer = undefined;
+      if (!pending || !loaded) return saving;
+      pending = false;
+      const snapshot: Entry = JSON.parse(JSON.stringify(entry));
+      snapshot.tasks = snapshot.tasks.filter((t) => t.text.trim());
+      setStatus('Salvando…');
+      saving = saving
+        .then(() => store.save(snapshot))
+        .then(() => {
+          if (!pending) setStatus('Salvo ✓', 'ok');
+        })
+        .catch((err: Error) => {
+          pending = true;
+          setStatus('Não foi possível salvar: ' + err.message, 'err');
+        });
+      return saving;
+    }
+
+    function touch() {
+      if (!loaded) return;
+      pending = true;
+      setStatus('Alterações não salvas…');
+      window.clearTimeout(timer);
+      timer = window.setTimeout(flush, 800);
+    }
+
+    function renderTasks() {
+      ul.replaceChildren();
+      for (const t of entry.tasks) {
+        const li = document.createElement('li');
+        li.className = 'task' + (t.done ? ' done' : '');
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = t.done;
+        cb.setAttribute('aria-label', 'Concluir tarefa');
+        cb.addEventListener('change', () => {
+          t.done = cb.checked;
+          li.classList.toggle('done', t.done);
+          updateCount();
+          touch();
+        });
+
+        const txt = document.createElement('input');
+        txt.type = 'text';
+        txt.className = 'task__text';
+        txt.maxLength = 300;
+        txt.value = t.text;
+        txt.setAttribute('aria-label', 'Texto da tarefa');
+        txt.addEventListener('input', () => {
+          t.text = txt.value;
+          touch();
+        });
+
+        const tm = document.createElement('input');
+        tm.type = 'time';
+        tm.value = t.time;
+        tm.setAttribute('aria-label', 'Horário da tarefa');
+        tm.addEventListener('input', () => {
+          t.time = tm.value;
+          touch();
+        });
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'icon-btn';
+        del.textContent = '✕';
+        del.setAttribute('aria-label', 'Remover tarefa');
+        del.addEventListener('click', () => {
+          entry.tasks = entry.tasks.filter((x) => x.id !== t.id);
+          renderTasks();
+          touch();
+        });
+
+        li.append(cb, txt, tm, del);
+        ul.append(li);
+      }
+      updateCount();
+    }
+
+    function updateCount() {
+      const total = entry.tasks.length;
+      const feitas = entry.tasks.filter((t) => t.done).length;
+      tCount.textContent = total ? `${feitas} de ${total} concluídas` : '';
+      tEmpty.hidden = total > 0;
+    }
+
+    function fillForm() {
+      intencao.value = entry.intention;
+      journal.value = entry.journal;
+      renderTasks();
+      setStatus('');
+    }
+
+    async function show(d: YMD) {
+      await flush();
+      const mine = ++seq;
+      current = d;
+      const iso = toISO(d);
+      loaded = false;
+      pending = false;
+      input.value = iso;
+      history.replaceState(null, '', `${location.pathname}?d=${iso}`);
+
+      const l = leitura(d);
+      read.innerHTML = renderResumo(l) + `<details class="more"><summary>Leitura completa</summary>${renderLeitura(l)}</details>`;
+      ($('gate-link') as HTMLAnchorElement).href = `${u('/conta/')}?next=${encodeURIComponent(`/dia/?d=${iso}`)}`;
+
+      const session = await store.getSession().catch(() => null);
+      if (mine !== seq) return;
+      if (!session) {
+        gate.hidden = false;
+        work.hidden = true;
+        return;
+      }
+      gate.hidden = true;
+      work.hidden = false;
+      try {
+        entry = (await store.get(iso)) ?? emptyEntry(iso);
+      } catch (err) {
+        if (mine !== seq) return;
+        setStatus('Não foi possível carregar este dia: ' + (err as Error).message, 'err');
+        return;
+      }
+      if (mine !== seq) return;
+      loaded = true;
+      fillForm();
+    }
+
+    const shift = (n: number) => fromDayNumber(toDayNumber(current) + n);
+
+    $('d-prev').addEventListener('click', () => show(shift(-1)));
+    $('d-next').addEventListener('click', () => show(shift(1)));
+    $('d-hoje').addEventListener('click', () => show(hoje));
+    input.addEventListener('change', () => {
+      const d = parseISO(input.value);
+      if (d) show(d);
+    });
+
+    intencao.addEventListener('input', () => {
+      entry.intention = intencao.value;
+      touch();
+    });
+    journal.addEventListener('input', () => {
+      entry.journal = journal.value;
+      touch();
+    });
+
+    $('task-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!loaded) return;
+      const text = $<HTMLInputElement>('t-text');
+      const time = $<HTMLInputElement>('t-time');
+      const value = text.value.trim();
+      if (!value) return;
+      entry.tasks.push({ id: newId(), text: value, done: false, time: time.value });
+      text.value = '';
+      time.value = '';
+      renderTasks();
+      touch();
+      text.focus();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush();
+    });
+    window.addEventListener('pagehide', () => {
+      flush();
+    });
+
+    show(current);
+  </script>
+</Base>

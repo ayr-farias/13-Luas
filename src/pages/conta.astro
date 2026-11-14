@@ -1,0 +1,189 @@
+---
+import Base from '../layouts/Base.astro';
+import { CLOUD } from '../lib/config';
+---
+<Base title="Conta" description="Entre para guardar suas tarefas e seu diário na sua conta.">
+  <div class="wrap section" style="padding-top:2rem">
+    <p class="eyebrow">Conta</p>
+    <h1 class="page-title grad">Seu espaço</h1>
+
+    {!CLOUD && (
+      <div class="card auth" id="local-info">
+        <h4>Modo local</h4>
+        <p>O login ainda não foi configurado neste site. Enquanto isso, o planner e o diário funcionam normalmente, mas ficam salvos <strong>apenas neste navegador</strong> (limpar os dados do navegador apaga tudo, e eles não aparecem em outros aparelhos).</p>
+        <p class="muted" style="margin:0"><small>Para ativar contas e sincronização, siga a seção “Ativar o login” do README do projeto.</small></p>
+      </div>
+    )}
+
+    {CLOUD && (
+      <div class="auth">
+        <div id="msg" class="msg" role="status" aria-live="polite" hidden></div>
+
+        <form class="card auth" id="form" novalidate hidden>
+          <h4>Entrar ou criar conta</h4>
+          <div class="field">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="senha">Senha</label>
+            <input type="password" id="senha" autocomplete="current-password" minlength="6" />
+          </div>
+          <div class="row">
+            <button class="btn btn--solid" type="submit" id="b-in">Entrar</button>
+            <button class="btn" type="button" id="b-up">Criar conta</button>
+          </div>
+          <button class="btn" type="button" id="b-magic" style="justify-content:center">Receber link de acesso por e-mail</button>
+          <p class="muted" style="margin:0"><small>A senha precisa ter ao menos 6 caracteres. O link de acesso dispensa a senha.</small></p>
+        </form>
+
+        <div class="card auth" id="account" hidden>
+          <h4>Conectado</h4>
+          <p style="margin:0">Você entrou como <strong id="who"></strong>.</p>
+          <div class="row">
+            <a class="btn btn--solid" id="go-dia" href="#">Abrir o diário</a>
+            <button class="btn" type="button" id="b-out">Sair</button>
+          </div>
+        </div>
+
+        <div class="card auth" id="import" hidden>
+          <h4>Dados deste navegador</h4>
+          <p id="import-text" style="margin:0"></p>
+          <div class="row">
+            <button class="btn btn--solid" type="button" id="b-import">Importar para minha conta</button>
+            <button class="btn" type="button" id="b-skip">Agora não</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+
+  {CLOUD && (
+    <script>
+      import { getStore, localEntries, wasImported, markImported, hasContent } from '../lib/store';
+      import { u } from '../lib/url';
+
+      const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+      const store = getStore();
+      const form = $<HTMLFormElement>('form');
+      const account = $('account');
+      const imp = $('import');
+      const msg = $('msg');
+
+      // destino depois do login: apenas caminhos internos conhecidos
+      const nextParam = new URLSearchParams(location.search).get('next') ?? '';
+      const next = /^\/(dia|calendario|guia)\//.test(nextParam) ? nextParam : '/dia/';
+      ($('go-dia') as HTMLAnchorElement).href = u(next);
+
+      function say(text: string, kind: 'ok' | 'err' | '' = '') {
+        msg.hidden = !text;
+        msg.textContent = text;
+        msg.setAttribute('data-kind', kind);
+      }
+
+      function busy(on: boolean) {
+        form.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = on));
+      }
+
+      async function render() {
+        const s = await store.getSession().catch(() => null);
+        form.hidden = !!s;
+        account.hidden = !s;
+        if (s) {
+          $('who').textContent = s.email;
+          const locais = localEntries().filter(hasContent);
+          if (locais.length && !wasImported()) {
+            $('import-text').textContent = `Há ${locais.length} dia(s) com anotações salvos neste navegador. Deseja copiá-los para a sua conta? Dias que já existem na conta não são sobrescritos.`;
+            imp.hidden = false;
+          } else {
+            imp.hidden = true;
+          }
+        } else {
+          imp.hidden = true;
+        }
+      }
+
+      function credenciais() {
+        const email = $<HTMLInputElement>('email').value.trim();
+        const senha = $<HTMLInputElement>('senha').value;
+        return { email, senha };
+      }
+
+      async function run(fn: () => Promise<void>) {
+        busy(true);
+        say('');
+        try {
+          await fn();
+        } catch (e) {
+          say((e as Error).message, 'err');
+        } finally {
+          busy(false);
+        }
+      }
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const { email, senha } = credenciais();
+        if (!email || !senha) return say('Informe e-mail e senha.', 'err');
+        run(async () => {
+          await store.signIn(email, senha);
+          location.assign(u(next));
+        });
+      });
+
+      $('b-up').addEventListener('click', () => {
+        const { email, senha } = credenciais();
+        if (!email || senha.length < 6) return say('Informe um e-mail e uma senha de ao menos 6 caracteres.', 'err');
+        run(async () => {
+          const { needsConfirmation } = await store.signUp(email, senha);
+          if (needsConfirmation) say('Conta criada. Enviamos um e-mail de confirmação: abra o link para ativar o acesso.', 'ok');
+          else location.assign(u(next));
+        });
+      });
+
+      $('b-magic').addEventListener('click', () => {
+        const { email } = credenciais();
+        if (!email) return say('Informe seu e-mail.', 'err');
+        run(async () => {
+          await store.magicLink(email);
+          say('Enviamos um link de acesso para o seu e-mail.', 'ok');
+        });
+      });
+
+      $('b-out').addEventListener('click', async () => {
+        await store.signOut();
+        say('Você saiu.', 'ok');
+        render();
+      });
+
+      $('b-skip').addEventListener('click', () => {
+        markImported();
+        imp.hidden = true;
+      });
+
+      $('b-import').addEventListener('click', async () => {
+        const btn = $<HTMLButtonElement>('b-import');
+        btn.disabled = true;
+        try {
+          let copiados = 0;
+          for (const e of localEntries()) {
+            const existente = await store.get(e.date);
+            if (existente && hasContent(existente)) continue;
+            await store.save(e);
+            copiados++;
+          }
+          markImported();
+          imp.hidden = true;
+          say(`${copiados} dia(s) importado(s) para a sua conta.`, 'ok');
+        } catch (e) {
+          say('Não foi possível importar: ' + (e as Error).message, 'err');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      store.onAuthChange(render);
+      render();
+    </script>
+  )}
+</Base>

@@ -1,0 +1,148 @@
+---
+import Base from '../layouts/Base.astro';
+import { COR_SEMANA, COR_HEX, COR_INFO, corAdj } from '../lib/data';
+---
+<Base title="Calendário" description="Os 365 dias do Anel Solar: 13 Luas de 28 dias com o Kin de cada dia. Toque em uma data para abrir o planner e o diário.">
+  <div class="wrap section" style="padding-top:2rem">
+    <div class="cal-head">
+      <div>
+        <p class="eyebrow">Anel Solar</p>
+        <h1 class="cal-title grad" id="cal-title">Calendário</h1>
+      </div>
+      <div class="toolbar" style="margin:0">
+        <button class="btn" id="prev" type="button" aria-label="Anel anterior">←</button>
+        <div class="field">
+          <label for="anel">Anel</label>
+          <select id="anel"></select>
+        </div>
+        <button class="btn" id="next" type="button" aria-label="Próximo anel">→</button>
+        <button class="btn" id="atual" type="button">Atual</button>
+      </div>
+    </div>
+
+    <p class="muted" id="cal-resumo" style="margin:-0.6rem 0 1.2rem"></p>
+
+    <div class="legend" aria-label="Legenda das semanas">
+      {COR_SEMANA.map((c) => (
+        <span><i style={`background:${COR_HEX[c]}`}></i>{corAdj(c, true)} · {COR_INFO[c].verbo.toLowerCase()}</span>
+      ))}
+      <span><i style="background:var(--gold);width:8px;height:8px;border-radius:50%"></i>dia com anotações</span>
+    </div>
+
+    <nav class="moon-nav" id="moon-nav" aria-label="Ir para a Lua"></nav>
+    <div id="cal"><p class="today-skel">Montando o Anel Solar…</p></div>
+    <noscript><p class="muted">O calendário precisa de JavaScript.</p></noscript>
+  </div>
+
+  <script>
+    import { ringInfo, ringStartYear, kinOf, seloDoKin, tomDoKin, toDayNumber, fromDayNumber, isFeb29, toISO, type YMD } from '../lib/calc';
+    import { LUAS, TONS, SELOS, PLASMAS, COR_HEX, COR_SEMANA, luaNome, kinNome } from '../lib/data';
+    import { sigilSvg } from '../lib/svg';
+    import { fmtDM, fmtShort } from '../lib/render';
+    import { getStore, hasContent } from '../lib/store';
+    import { u } from '../lib/url';
+
+    const root = document.getElementById('cal') as HTMLElement;
+    const sel = document.getElementById('anel') as HTMLSelectElement;
+    const resumo = document.getElementById('cal-resumo') as HTMLElement;
+    const moonNav = document.getElementById('moon-nav') as HTMLElement;
+    const store = getStore();
+
+    const now = new Date();
+    const hoje: YMD = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+    const hojeISO = toISO(hoje);
+    const anelAtual = ringStartYear(hoje);
+    const MIN = 1988;
+    const MAX = 2100;
+
+    let start = anelAtual;
+    const q = new URLSearchParams(location.search).get('anel');
+    if (q && /^\d{4}$/.test(q) && +q >= MIN && +q <= MAX) start = +q;
+
+    for (let y = MIN; y <= MAX; y++) {
+      const o = document.createElement('option');
+      o.value = String(y);
+      o.textContent = `NS1.${y - 1987} · ${y}–${y + 1}`;
+      sel.appendChild(o);
+    }
+
+    function datasDoAnel(startYear: number): YMD[] {
+      const out: YMD[] = [];
+      let dn = toDayNumber({ y: startYear, m: 7, d: 26 });
+      while (out.length < 365) {
+        const d = fromDayNumber(dn);
+        if (!isFeb29(d)) out.push(d);
+        dn += 1;
+      }
+      return out;
+    }
+
+    function cell(date: YMD, numero: string | number, semanaHex: string, special = false): string {
+      const kin = kinOf(date) as number;
+      const selo = SELOS[seloDoKin(kin) - 1];
+      const tom = TONS[tomDoKin(kin) - 1];
+      const hex = COR_HEX[selo.cor];
+      const iso = toISO(date);
+      const nome = kinNome(selo, tom);
+      return `<a class="day${special ? ' day--special' : ''}" href="${u(`/dia/?d=${iso}`)}" data-iso="${iso}" data-today="${iso === hojeISO}" style="--wk:${semanaHex};--sc:${hex}" title="${nome}" aria-label="${fmtDM(date)}: Kin ${kin}, ${nome}">
+        <span class="day__n">${numero}</span>
+        ${sigilSvg(selo.n, hex, 30)}
+        <span class="day__k">Kin ${kin}</span>
+        <span class="day__g">${special ? `${fmtShort(date)} · ${nome}` : fmtDM(date)}</span>
+      </a>`;
+    }
+
+    async function marcarAnotacoes(from: string, to: string) {
+      try {
+        const session = await store.getSession();
+        if (!session) return;
+        const entradas = await store.range(from, to);
+        const com = new Set(entradas.filter(hasContent).map((e) => e.date));
+        root.querySelectorAll<HTMLElement>('.day[data-iso]').forEach((el) => {
+          if (com.has(el.dataset.iso as string)) el.setAttribute('data-has', 'true');
+        });
+      } catch {
+        /* sem marcação se o armazenamento falhar */
+      }
+    }
+
+    function render() {
+      sel.value = String(start);
+      const info = ringInfo(start);
+      const datas = datasDoAnel(start);
+      const rs = SELOS[info.selo - 1];
+      const rt = TONS[info.tom - 1];
+      (document.getElementById('cal-title') as HTMLElement).textContent = `Anel ${info.nome}`;
+      resumo.innerHTML = `${start}–${start + 1} · Kin do Anel: <strong style="color:${COR_HEX[rs.cor]}">${kinNome(rs, rt)}</strong> (${info.kin})`;
+
+      moonNav.innerHTML = LUAS.map((l) => `<a href="#lua-${l.n}" title="${luaNome(l)}">${l.n}</a>`).join('') + `<a href="#fora" title="Dia Fora do Tempo" style="width:auto;padding:0 .9rem;border-radius:999px">DFT</a>`;
+
+      const headers = PLASMAS.map((p) => `<div class="pl-h" style="color:${COR_HEX[p.cor]}">${p.nome}</div>`).join('');
+      let html = '';
+      for (let m = 0; m < 13; m++) {
+        const lua = LUAS[m];
+        const per = info.luas[m];
+        const dias = Array.from({ length: 28 }, (_, i) => cell(datas[m * 28 + i], i + 1, COR_HEX[COR_SEMANA[Math.floor(i / 7)]])).join('');
+        const tem29 = info.hunabKu && m === 7;
+        html += `<section class="moon-sec" id="lua-${lua.n}">
+          <div class="moon-sec__head"><h3>${lua.n}ª ${luaNome(lua)}</h3><p>${fmtShort(per.inicio)} – ${fmtShort(per.fim)} · ${lua.totem}</p></div>
+          <div class="moon-grid">${headers}${dias}</div>
+          ${tem29 ? `<p class="muted" style="margin:.7rem 0 0">29/fev é o <strong>Dia 0.0 (Hunab Ku 21)</strong>: cai entre os dias 22 e 23 desta Lua e não recebe Kin. <a href="${u(`/dia/?d=${toISO(info.hunabKu!)}`)}">Abrir</a></p>` : ''}
+        </section>`;
+      }
+      html += `<section class="moon-sec" id="fora"><div class="moon-sec__head"><h3>Dia Fora do Tempo</h3><p>${fmtShort(info.diaForaDoTempo)} · Dia da Paz através da Cultura</p></div><div class="moon-grid">${cell(info.diaForaDoTempo, '∞', 'var(--gold)', true)}</div></section>`;
+      root.innerHTML = html;
+      history.replaceState(null, '', (start === anelAtual ? location.pathname : `?anel=${start}`) + location.hash);
+      marcarAnotacoes(toISO(datas[0]), toISO(datas[datas.length - 1]));
+    }
+
+    sel.addEventListener('change', () => { start = +sel.value; render(); });
+    document.getElementById('prev')!.addEventListener('click', () => { if (start > MIN) { start--; render(); } });
+    document.getElementById('next')!.addEventListener('click', () => { if (start < MAX) { start++; render(); } });
+    document.getElementById('atual')!.addEventListener('click', () => { start = anelAtual; render(); });
+
+    render();
+    if (location.hash.startsWith('#lua-') || location.hash === '#fora') document.querySelector(location.hash)?.scrollIntoView();
+    else if (start === anelAtual) document.querySelector('.day[data-today=true]')?.scrollIntoView({ block: 'center' });
+  </script>
+</Base>

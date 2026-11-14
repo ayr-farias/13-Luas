@@ -1,0 +1,52 @@
+---
+import Base from '../layouts/Base.astro';
+import { u } from '../lib/url';
+---
+<Base title="Sobre" description="Como o Sincronário é calculado aqui, como seus dados são guardados, fontes e ressalvas.">
+  <div class="wrap section" style="padding-top:2rem">
+    <p class="eyebrow">Método e transparência</p>
+    <h1 class="page-title grad">Sobre</h1>
+
+    <div class="prose">
+      <p>O <strong>Sincronário das 13 Luas</strong> (Calendário da Paz) foi proposto por José e Lloydine Argüelles como “Lei do Tempo”. Este site é uma ferramenta independente de estudo, sem vínculo com a Fundação Lei do Tempo.</p>
+
+      <h2>Como o cálculo funciona</h2>
+      <ul>
+        <li><strong>Anel Solar:</strong> começa em 26 de julho; 13 Luas de 28 dias (364 dias) mais o <em>Dia Fora do Tempo</em>, 25 de julho.</li>
+        <li><strong>29 de fevereiro</strong> é o <em>Dia 0.0 (Hunab Ku 21)</em>: sem Kin, Lua ou dia da semana. A contagem vai de 28/fev direto para 1º/mar.</li>
+        <li><strong>Kin:</strong> contagem contínua de 1 a 260, um por dia. Âncora: <em>7/9/2025 = Kin 167</em> (Mão Espectral Azul). Selo = ((Kin − 1) mod 20) + 1; tom = ((Kin − 1) mod 13) + 1.</li>
+        <li><strong>Oráculo:</strong> análogo 19 − selo; antípoda selo + 10; oculto 21 − selo e tom 14 − tom; o guia depende do tom.</li>
+        <li><strong>Ondas</strong> são blocos de 13 Kins; <strong>castelos</strong>, de 52.</li>
+      </ul>
+      <p>O cálculo é testado (<code>npm test</code>) contra 18 datas de fontes independentes, de 1949 a 2064, com vários anos bissextos, e contra o Anel NS1.37 do Sincronário de Bolso oficial.</p>
+
+      <h2>Seus dados (tarefas e diário)</h2>
+      <ul>
+        <li><strong>Com login configurado:</strong> as anotações ficam na sua conta e só você as acessa (cada linha do banco é protegida por regra de acesso por usuário). Visitantes sem login não leem nada.</li>
+        <li><strong>Sem login (modo local):</strong> ficam apenas neste navegador, sem sincronização entre aparelhos.</li>
+        <li>As anotações não são criptografadas de ponta a ponta: quem administra o projeto no Supabase tecnicamente consegue lê-las. Evite registrar informações extremamente sensíveis.</li>
+      </ul>
+
+      <h2>Ressalvas</h2>
+      <ul>
+        <li><strong>Não é o Tzolk’in maia tradicional.</strong> A contagem do Sincronário ignora o 29/fev e diverge da contagem maia clássica; datas iguais podem ter Kins diferentes.</li>
+        <li><strong>Textos interpretativos</strong> são sínteses próprias da tradição, não citações do Sincronário oficial. Nomes em português seguem o uso corrente no Brasil, com variações entre autores.</li>
+        <li><strong>Plasmas e chakras:</strong> as correspondências variam entre publicações; aqui seguem o quadro da Fundação Lei do Tempo (Dali coroa, Gama terceiro olho, Alfa garganta, Silio coração, Limi plexo solar, Kali sacro, Seli raiz). Verbos e versos são aproximações a conferir.</li>
+        <li><strong>Portais de Ativação Galáctica</strong> (52 Kins marcados no Sincronário oficial) não estão incluídos: não há aqui uma lista completa e verificada.</li>
+        <li><strong>Fase da Lua no céu</strong> é aproximada (erro de até cerca de um dia) e não faz parte do Sincronário. Os <strong>sigilos</strong> dos selos são desenhos ilustrativos, não os glifos originais.</li>
+      </ul>
+
+      <h2>Fontes</h2>
+      <ul>
+        <li><a href="https://www.13lunas.net/sincronarios/sincro24-25/NS1.37_SINCRONARIO_BOLSILLO.pdf">Sincronário de Bolso NS1.37</a> — Fundação Lei do Tempo</li>
+        <li><a href="https://www.13lunas.net/28_dias_consciencia_galactica/PROGRAMA_DE_28_DIAS_2_HEPTADA.pdf">28 dias de consciência galáctica (plasmas)</a> — 13lunas.net</li>
+        <li><a href="https://community.ld4all.com/t/how-to-find-your-occult-tone/13962">Fórmulas do oráculo</a> · <a href="https://community.ld4all.com/t/leap-years/13238">Anos bissextos</a> — comunidade Dreamspell</li>
+        <li><a href="https://mayankin.com/?p=1816">Dia 0.0 Hunab Ku</a> — Mayan Kin</li>
+        <li><a href="https://yokai.jp/en/maya-calendar">Calculadora Dreamspell</a> · <a href="https://photon.net/13moon.php">13 Moon Calendar Tool</a> — datas de conferência</li>
+        <li><a href="https://pausaparapresenciar.substack.com/p/oraculo-da-presenca-23-a-29062025">Oráculo da Presença</a> · <a href="https://lucilea.substack.com/p/onda-encantada-da-serpente-vermelha">Onda Encantada da Serpente Vermelha</a> — vocabulário em português</li>
+      </ul>
+
+      <p class="muted"><small>Para estudo sério ou uso devocional, confira com o Sincronário oficial do ano. <a href={u('/guia/')}>Voltar ao guia</a>.</small></p>
+    </div>
+  </div>
+</Base>

@@ -1,0 +1,108 @@
+---
+import '@fontsource/cinzel/latin-400.css';
+import '@fontsource/cinzel/latin-500.css';
+import '@fontsource/cinzel/latin-600.css';
+import '@fontsource/cormorant-garamond/latin-400.css';
+import '@fontsource/cormorant-garamond/latin-500.css';
+import '@fontsource/cormorant-garamond/latin-600.css';
+import '@fontsource/cormorant-garamond/latin-400-italic.css';
+import '../styles/global.css';
+import Stars from '../components/Stars.astro';
+import { u, BASE_PATH } from '../lib/url';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const SITE = 'Sincronário das 13 Luas';
+const { title, description = 'Calendário do Sincronário da Paz com diário e planner para cada dia: Kin, Lua, plasma, onda, castelo e oráculo.' } = Astro.props;
+const fullTitle = title === SITE ? title : `${title} · ${SITE}`;
+const rel = Astro.url.pathname.startsWith(BASE_PATH) ? Astro.url.pathname.slice(BASE_PATH.length) || '/' : Astro.url.pathname;
+
+const nav = [
+  { href: '/', label: 'Hoje' },
+  { href: '/calendario/', label: 'Calendário' },
+  { href: '/dia/', label: 'Diário' },
+  { href: '/guia/', label: 'Guia' },
+  { href: '/sobre/', label: 'Sobre' },
+];
+const active = (href: string) => (href === '/' ? rel === '/' : rel.startsWith(href));
+
+const favicon =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='#0d0a2e'/><circle cx='32' cy='32' r='20' fill='none' stroke='#e2c275' stroke-width='2'/><circle cx='32' cy='32' r='9' fill='#e2c275'/><circle cx='32' cy='9' r='3.5' fill='#7a5cff'/></svg>`,
+  );
+---
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#06041a" />
+    <meta name="description" content={description} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href={favicon} />
+    <title>{fullTitle}</title>
+  </head>
+  <body>
+    <Stars />
+    <header class="site-head">
+      <div class="wrap site-head__in">
+        <a class="brand" href={u('/')} aria-label="Sincronário das 13 Luas — início">
+          <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="none" stroke="#e2c275" stroke-width="2"/><circle cx="32" cy="32" r="10" fill="#e2c275"/><circle cx="32" cy="8" r="4" fill="#7a5cff"/></svg>
+          <span>13 Luas</span>
+        </a>
+        <nav class="nav" id="nav" aria-label="Principal">
+          {nav.map((n) => <a href={u(n.href)} aria-current={active(n.href) ? 'page' : undefined}>{n.label}</a>)}
+          <a class="nav__acct" id="acct" href={u('/conta/')} aria-current={rel.startsWith('/conta/') ? 'page' : undefined}>Entrar</a>
+        </nav>
+        <button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav" id="menu-btn">Menu</button>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-foot">
+      <div class="wrap">
+        <p><strong>In Lak’ech · Eu sou outro tu</strong><br />Ferramenta independente de estudo, baseada na Lei do Tempo de José e Lloydine Argüelles. <a href={u('/sobre/')}>Método, fontes e ressalvas</a>.</p>
+      </div>
+    </footer>
+
+    <script>
+      import { getStore } from '../lib/store';
+
+      const btn = document.getElementById('menu-btn');
+      const nav = document.getElementById('nav');
+      btn?.addEventListener('click', () => {
+        const open = nav?.getAttribute('data-open') === 'true';
+        nav?.setAttribute('data-open', String(!open));
+        btn.setAttribute('aria-expanded', String(!open));
+      });
+
+      const chip = document.getElementById('acct');
+      const store = getStore();
+      async function refresh() {
+        if (!chip) return;
+        const s = await store.getSession().catch(() => null);
+        if (store.mode === 'local') {
+          chip.textContent = 'Modo local';
+          chip.title = 'Seus dados ficam salvos só neste navegador.';
+        } else if (s) {
+          chip.textContent = s.email.split('@')[0] || 'Conta';
+          chip.title = s.email;
+          chip.setAttribute('data-in', 'true');
+        } else {
+          chip.textContent = 'Entrar';
+          chip.removeAttribute('data-in');
+        }
+      }
+      refresh();
+      store.onAuthChange(refresh);
+    </script>
+  </body>
+</html>

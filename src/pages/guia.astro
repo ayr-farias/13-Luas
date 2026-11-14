@@ -1,0 +1,278 @@
+---
+import Base from '../layouts/Base.astro';
+import { SELOS, TONS, LUAS, PLASMAS, CASTELOS, FAMILIAS, COR_HEX, COR_INFO, COR_SEMANA, corAdj, kinNome, luaNome } from '../lib/data';
+import { sigilSvg, toneSvg } from '../lib/svg';
+import { kinFromSeloTom } from '../lib/calc';
+import { u } from '../lib/url';
+
+const wrap20 = (x: number) => ((((x - 1) % 20) + 20) % 20) + 1;
+const GUIA: Record<number, number> = { 1: 0, 6: 0, 11: 0, 2: 12, 7: 12, 12: 12, 3: 4, 8: 4, 13: 4, 4: 16, 9: 16, 5: 8, 10: 8 };
+const ondas = Array.from({ length: 20 }, (_, i) => ({
+  n: i + 1,
+  primeiro: i * 13 + 1,
+  selo: SELOS[(i * 13) % 20],
+  castelo: CASTELOS[Math.floor(i / 4)],
+}));
+const tabs = [
+  ['luas', 'Luas'],
+  ['selos', 'Selos'],
+  ['tons', 'Tons'],
+  ['plasmas', 'Plasmas'],
+  ['ondas', 'Ondas e castelos'],
+  ['matriz', 'Matriz'],
+  ['kin', 'Meu Kin'],
+];
+---
+<Base title="Guia" description="Referência do Sincronário: as 13 luas, 20 selos, 13 tons, 7 plasmas, ondas, castelos e a matriz dos 260 Kins.">
+  <div class="wrap section" style="padding-top:2rem">
+    <p class="eyebrow">Referência</p>
+    <h1 class="page-title grad">Guia do Sincronário</h1>
+    <p class="hint">Um Kin é a combinação de um <strong>selo</strong> (o quê) com um <strong>tom</strong> (como). Toque num item para abrir.</p>
+
+    <div class="tabs" role="tablist" aria-label="Seções do guia">
+      {tabs.map(([id, label]) => <button type="button" role="tab" data-tab={id} aria-selected="false">{label}</button>)}
+    </div>
+
+    <!-- LUAS -->
+    <section id="luas" data-panel aria-label="As 13 luas">
+      <p class="hint" style="margin-bottom:1rem">Cada Lua tem 28 dias (4 semanas de 7). Seu nome une um tom a um totem. <span id="anel-info"></span></p>
+      <div class="glist">
+        {LUAS.map((l) => {
+          const t = TONS[l.n - 1];
+          return (
+            <details class="gcard">
+              <summary>
+                <span class="g-num">{l.n}</span>
+                <span><b>{luaNome(l)}</b><small data-periodo={l.n}>{t.acao} · {t.poder} · {t.essencia}</small></span>
+              </summary>
+              <div class="gbody">
+                <p>Totem: <strong>{l.totem}</strong> <span class="muted">({l.totemEn})</span></p>
+                <p>{l.texto}</p>
+                <p class="quote">“{t.pergunta}”</p>
+                <p style="margin:0"><a href={u(`/calendario/#lua-${l.n}`)}>Ver no calendário →</a></p>
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </section>
+
+    <!-- SELOS -->
+    <section id="selos" data-panel aria-label="Os 20 selos">
+      <p class="hint" style="margin-bottom:1rem">Quatro cores se repetem: vermelho inicia, branco refina, azul transforma, amarelo amadurece.</p>
+      <div class="glist">
+        {SELOS.map((s) => {
+          const hex = COR_HEX[s.cor];
+          const fam = FAMILIAS[(s.n % 5 === 0 ? 5 : s.n % 5) - 1];
+          return (
+            <details class="gcard" style={`--sc:${hex}`}>
+              <summary>
+                <span class="g-ico"><Fragment set:html={sigilSvg(s.n, hex, 42)} /></span>
+                <span><b style={`color:${hex}`}>{s.n} · {s.nome}</b><small>{corAdj(s.cor, s.fem)} · {COR_INFO[s.cor].direcao}</small></span>
+              </summary>
+              <div class="gbody">
+                <dl class="trio"><div><dt>Ação</dt><dd>{s.acao}</dd></div><div><dt>Poder</dt><dd>{s.poder}</dd></div><div><dt>Essência</dt><dd>{s.essencia}</dd></div></dl>
+                <p>{s.texto}</p>
+                <p class="muted" style="margin:0"><small>Nome maia: {s.maya} · inglês: {s.en} · família {fam.nome}<br />Análogo: {SELOS[wrap20(19 - s.n) - 1].nome} · Antípoda: {SELOS[wrap20(s.n + 10) - 1].nome} · Oculto: {SELOS[wrap20(21 - s.n) - 1].nome}</small></p>
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </section>
+
+    <!-- TONS -->
+    <section id="tons" data-panel aria-label="Os 13 tons">
+      <p class="hint" style="margin-bottom:1rem">Na numeração maia, um ponto vale 1 e uma barra vale 5. O tom é o ritmo do dia dentro da onda de 13.</p>
+      <div class="glist">
+        {TONS.map((t) => (
+          <details class="gcard">
+            <summary>
+              <span class="g-ico"><Fragment set:html={toneSvg(t.n, '#e2c275', 40)} /></span>
+              <span><b>{t.n} · {t.m}</b><small>{t.acao} · {t.poder} · {t.essencia}</small></span>
+            </summary>
+            <div class="gbody">
+              <p>{t.texto}</p>
+              <p class="quote">“{t.pergunta}”</p>
+              <p class="muted" style="margin:0"><small>No oráculo, o Guia é {GUIA[t.n] === 0 ? 'o próprio selo' : `o selo ${GUIA[t.n]} posições adiante`}; o tom do Oculto é {14 - t.n}.</small></p>
+            </div>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <!-- PLASMAS -->
+    <section id="plasmas" data-panel aria-label="Os 7 plasmas radiais">
+      <p class="hint" style="margin-bottom:1rem">Os dias da semana do Sincronário. Dali cai nos dias 1, 8, 15 e 22 de cada Lua.</p>
+      <div class="glist">
+        {PLASMAS.map((p) => (
+          <details class="gcard" style={`--sc:${COR_HEX[p.cor]}`}>
+            <summary>
+              <span class="g-num" style={`color:${COR_HEX[p.cor]}`}>{p.n}</span>
+              <span><b style={`color:${COR_HEX[p.cor]}`}>{p.nome}</b><small>{p.verbo} · chakra {p.chakra}</small></span>
+            </summary>
+            <div class="gbody">
+              <p class="quote">{p.verso}</p>
+              <p class="muted" style="margin:0"><small>{corAdj(p.cor, false)} · {p.chakraSans} · dias {p.n}, {p.n + 7}, {p.n + 14} e {p.n + 21} da Lua</small></p>
+            </div>
+          </details>
+        ))}
+      </div>
+      <div class="legend" style="margin-top:1.4rem">
+        {COR_SEMANA.map((c) => (
+          <span><i style={`background:${COR_HEX[c]}`}></i>Semana {COR_INFO[c].semana}: {corAdj(c, true).toLowerCase()} · {COR_INFO[c].verbo.toLowerCase()} · {COR_INFO[c].direcao}</span>
+        ))}
+      </div>
+      <p class="hint"><small>Chakras e verbos dos plasmas variam entre publicações; veja <a href={u('/sobre/')}>Sobre</a>.</small></p>
+    </section>
+
+    <!-- ONDAS E CASTELOS -->
+    <section id="ondas" data-panel aria-label="Ondas encantadas e castelos">
+      <p class="hint" style="margin-bottom:1rem">Os 260 Kins formam 20 ondas de 13 dias; quatro ondas formam um castelo de 52 dias.</p>
+      <div class="glist" style="margin-bottom:1.6rem">
+        {CASTELOS.map((c) => (
+          <details class="gcard" style={`--sc:${COR_HEX[c.cor]}`}>
+            <summary>
+              <span class="g-num" style={`color:${COR_HEX[c.cor]}`}>{c.n}</span>
+              <span><b style={`color:${COR_HEX[c.cor]}`}>{c.nome}</b><small>{c.tema} · Kins {c.primeiroKin}–{c.ultimoKin}</small></span>
+            </summary>
+            <div class="gbody"><p style="margin:0">{c.texto}</p></div>
+          </details>
+        ))}
+      </div>
+      <div style="overflow-x:auto">
+        <table class="table wave-table">
+          <thead><tr><th>Onda</th><th>Kins</th><th>Selo da onda</th><th>Poder</th><th>Castelo</th></tr></thead>
+          <tbody>
+            {ondas.map((o) => (
+              <tr data-onda={o.n}>
+                <td>{o.n}</td>
+                <td>{o.primeiro}–{o.primeiro + 12}</td>
+                <td style={`color:${COR_HEX[o.selo.cor]}`}>{o.selo.nome} {corAdj(o.selo.cor, o.selo.fem)}</td>
+                <td>{o.selo.poder}</td>
+                <td>{o.castelo.tema}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MATRIZ -->
+    <section id="matriz" data-panel aria-label="Matriz dos 260 Kins">
+      <p class="hint">Linhas: selos. Colunas: tons. O Kin de hoje brilha em dourado. <strong id="hoje-kin"></strong></p>
+      <div class="matrix-wrap">
+        <table class="matrix">
+          <thead>
+            <tr><th></th>{TONS.map((t) => <th title={t.m}>{t.n}</th>)}</tr>
+          </thead>
+          <tbody>
+            {SELOS.map((s) => (
+              <tr>
+                <th class="rowh" style={`color:${COR_HEX[s.cor]}`} scope="row">{s.n} · {s.nome}</th>
+                {TONS.map((t) => {
+                  const k = kinFromSeloTom(s.n, t.n);
+                  return <td style={`--sc:${COR_HEX[s.cor]}`} data-kin={k} title={`Kin ${k}: ${kinNome(s, t)}`}>{k}</td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MEU KIN -->
+    <section id="kin" data-panel aria-label="Quando meu Kin volta">
+      <p class="hint">Escolha um selo e um tom para ver as próximas datas em que esse Kin volta (a cada 260 dias do Sincronário). Para descobrir o Kin de uma data, use o <a href={u('/dia/')}>Diário</a>.</p>
+      <div class="toolbar">
+        <div class="field">
+          <label for="f-selo">Selo</label>
+          <select id="f-selo">{SELOS.map((s) => <option value={s.n}>{s.n} · {s.nome} {corAdj(s.cor, s.fem)}</option>)}</select>
+        </div>
+        <div class="field">
+          <label for="f-tom">Tom</label>
+          <select id="f-tom">{TONS.map((t) => <option value={t.n}>{t.n} · {t.m}</option>)}</select>
+        </div>
+      </div>
+      <div id="proximas"></div>
+    </section>
+  </div>
+
+  <script>
+    import { ringInfo, ringStartYear, kinOf, kinFromSeloTom, proximasDoKin, toISO, toDayNumber, leitura } from '../lib/calc';
+    import { SELOS, TONS, COR_HEX, DIAS_SEMANA, kinNome } from '../lib/data';
+    import { fmtShort, fmtLong } from '../lib/render';
+    import { sigilSvg } from '../lib/svg';
+    import { u } from '../lib/url';
+
+    const now = new Date();
+    const hoje = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+
+    // abas
+    const ids = Array.from(document.querySelectorAll<HTMLElement>('[data-panel]')).map((p) => p.id);
+    const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-tab]'));
+    function show(id: string) {
+      if (!ids.includes(id)) id = ids[0];
+      document.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => (p.hidden = p.id !== id));
+      tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === id)));
+    }
+    tabs.forEach((t) =>
+      t.addEventListener('click', () => {
+        show(t.dataset.tab as string);
+        history.replaceState(null, '', '#' + t.dataset.tab);
+      }),
+    );
+    window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+    show(location.hash.slice(1));
+
+    // períodos das luas no Anel atual
+    const info = ringInfo(ringStartYear(hoje));
+    document.querySelectorAll<HTMLElement>('[data-periodo]').forEach((el) => {
+      const l = info.luas[Number(el.dataset.periodo) - 1];
+      el.textContent = `${fmtShort(l.inicio)} a ${fmtShort(l.fim)}`;
+    });
+    const ai = document.getElementById('anel-info');
+    if (ai) ai.textContent = `Datas do Anel ${info.nome} (${info.startYear}–${info.startYear + 1}).`;
+
+    // destaque de hoje (onda e matriz)
+    const l = leitura(hoje);
+    const k = kinOf(hoje);
+    const out = document.getElementById('hoje-kin');
+    if (k) {
+      document.querySelector<HTMLElement>(`td[data-kin="${k}"]`)?.setAttribute('data-today', 'true');
+      document.querySelector<HTMLElement>(`tr[data-onda="${l.onda}"]`)?.setAttribute('style', 'background:rgba(226,194,117,.14)');
+      if (out) out.textContent = `Hoje: Kin ${k}, ${kinNome(SELOS[(k - 1) % 20], TONS[(k - 1) % 13])}.`;
+    } else if (out) {
+      out.textContent = 'Hoje é 29 de fevereiro (Dia 0.0): sem Kin.';
+    }
+
+    // buscador de Kin
+    const selSel = document.getElementById('f-selo') as HTMLSelectElement;
+    const tomSel = document.getElementById('f-tom') as HTMLSelectElement;
+    const prox = document.getElementById('proximas') as HTMLElement;
+    function finder() {
+      const s = +selSel.value;
+      const t = +tomSel.value;
+      const kin = kinFromSeloTom(s, t);
+      const selo = SELOS[s - 1];
+      const hex = COR_HEX[selo.cor];
+      const datas = proximasDoKin(kin, hoje, 8);
+      prox.innerHTML = `<div class="card" style="--sc:${hex};max-width:620px">
+        <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+          ${sigilSvg(s, hex, 60)}
+          <div><p class="eyebrow" style="margin:0">Kin ${kin}</p><p class="big" style="color:${hex};margin:0">${kinNome(selo, TONS[t - 1])}</p></div>
+        </div>
+        <ul style="margin:1rem 0 0;padding-left:1.1rem">
+          ${datas.map((d) => `<li><a href="${u(`/dia/?d=${toISO(d)}`)}">${fmtLong(d)}</a> <small class="muted">${DIAS_SEMANA[(((toDayNumber(d) + 4) % 7) + 7) % 7]}</small></li>`).join('')}
+        </ul>
+      </div>`;
+    }
+    selSel.addEventListener('change', finder);
+    tomSel.addEventListener('change', finder);
+    if (k) {
+      selSel.value = String(((k - 1) % 20) + 1);
+      tomSel.value = String(((k - 1) % 13) + 1);
+    }
+    finder();
+  </script>
+</Base>

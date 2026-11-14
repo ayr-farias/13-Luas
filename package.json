@@ -1,0 +1,21 @@
+{
+  "name": "sincronario-13-luas",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "tsx scripts/test-calc.ts"
+  },
+  "dependencies": {
+    "@fontsource/cinzel": "^5.3.0",
+    "@fontsource/cormorant-garamond": "^5.3.0",
+    "@supabase/supabase-js": "^2.119.0",
+    "astro": "^7.4.10"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}

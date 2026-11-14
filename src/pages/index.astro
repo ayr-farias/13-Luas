@@ -1,0 +1,105 @@
+---
+import Base from '../layouts/Base.astro';
+import Mandala from '../components/Mandala.astro';
+import { u } from '../lib/url';
+---
+<Base title="Sincronário das 13 Luas">
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Calendário da Paz · Lei do Tempo</p>
+        <h1 class="grad">Sincronário<br />das 13 Luas</h1>
+        <p class="hero__lead">Treze luas de 28 dias. Cada dia traz um Kin, um plasma e um espaço seu para planejar e escrever.</p>
+        <div class="hero__cta">
+          <a class="btn btn--solid" id="cta-dia" href={u('/dia/')}>Diário de hoje</a>
+          <a class="btn" href={u('/calendario/')}>Calendário</a>
+          <a class="btn" href={u('/guia/')}>Guia</a>
+        </div>
+      </div>
+      <div class="hero__art"><Mandala /></div>
+    </section>
+
+    <section class="section" id="hoje" aria-label="Hoje no Sincronário" style="padding-top:1.5rem">
+      <div id="resumo-hoje" aria-live="polite"><p class="today-skel">Calculando o tempo de hoje…</p></div>
+      <div id="seu-dia" style="margin-top:1.4rem"></div>
+      <noscript><p class="center muted">Ative o JavaScript para ver a leitura de hoje, calculada no seu fuso horário.</p></noscript>
+    </section>
+  </div>
+
+  <script>
+    import { leitura } from '../lib/calc';
+    import { renderResumo } from '../lib/render';
+    import { getStore } from '../lib/store';
+    import { u } from '../lib/url';
+
+    const now = new Date();
+    const hoje = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+    const l = leitura(hoje);
+
+    const resumo = document.getElementById('resumo-hoje');
+    if (resumo) {
+      resumo.innerHTML = renderResumo(l) + `<p class="center" style="margin-top:1.2rem"><a href="${u(`/dia/?d=${l.iso}`)}">Ver a leitura completa de hoje →</a></p>`;
+    }
+    const cta = document.getElementById('cta-dia') as HTMLAnchorElement | null;
+    if (cta) cta.href = u(`/dia/?d=${l.iso}`);
+    if (l.lua) {
+      document.querySelectorAll<SVGElement>('.moon-node').forEach((n) => {
+        if (Number(n.getAttribute('data-lua')) === l.lua) n.setAttribute('data-active', 'true');
+      });
+    }
+
+    // Prévia do planner de hoje (apenas leitura)
+    const box = document.getElementById('seu-dia');
+    const store = getStore();
+    (async () => {
+      if (!box) return;
+      const session = await store.getSession().catch(() => null);
+      const link = u(`/dia/?d=${l.iso}`);
+      if (!session) {
+        box.innerHTML = `<div class="card gate"><h4>Seu dia</h4><p>Entre na sua conta para planejar tarefas e escrever o diário de cada data.</p><a class="btn" href="${u('/conta/')}">Entrar</a></div>`;
+        return;
+      }
+      const entry = await store.get(l.iso).catch(() => null);
+      const card = document.createElement('div');
+      card.className = 'card';
+      const h = document.createElement('h4');
+      h.textContent = 'Seu dia';
+      card.append(h);
+      const abertas = entry?.tasks.filter((t) => !t.done && t.text.trim()) ?? [];
+      if (entry?.intention) {
+        const p = document.createElement('p');
+        p.className = 'quote';
+        p.textContent = entry.intention;
+        card.append(p);
+      }
+      if (abertas.length) {
+        const ul = document.createElement('ul');
+        ul.style.margin = '0 0 .8rem';
+        ul.style.paddingLeft = '1.2rem';
+        for (const t of abertas.slice(0, 5)) {
+          const li = document.createElement('li');
+          li.textContent = (t.time ? t.time + ' · ' : '') + t.text;
+          ul.append(li);
+        }
+        card.append(ul);
+        if (abertas.length > 5) {
+          const more = document.createElement('p');
+          more.className = 'muted';
+          more.textContent = `e mais ${abertas.length - 5} tarefa(s)`;
+          card.append(more);
+        }
+      } else {
+        const p = document.createElement('p');
+        p.className = 'muted';
+        p.textContent = entry ? 'Nenhuma tarefa aberta para hoje.' : 'Nada anotado para hoje ainda.';
+        card.append(p);
+      }
+      const a = document.createElement('a');
+      a.className = 'btn';
+      a.href = link;
+      a.textContent = 'Abrir planner e diário';
+      card.append(a);
+      box.replaceChildren(card);
+    })();
+  </script>
+</Base>
